@@ -1,1 +1,232 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Descargas Oficial</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --accent-color: #2563eb;
+            --accent-hover: #1d4ed8;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+        }
 
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        header {
+            background-color: var(--card-bg);
+            padding: 1.5rem 2rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 1.6rem;
+            color: #f8fafc;
+        }
+        
+        header p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-top: 0.2rem;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+            width: 100%;
+            flex: 1;
+        }
+
+        .files-section {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+        }
+
+        .files-section h2 {
+            font-size: 1.2rem;
+            margin-bottom: 1.5rem;
+            color: var(--text-main);
+            border-bottom: 1px solid #334155;
+            padding-bottom: 0.5rem;
+        }
+
+        /* Mensajes de estado */
+        #loading-message {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
+        }
+
+        /* Tabla de archivos */
+        .file-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            display: none; /* Se activa con JS cuando carguen los datos */
+        }
+
+        .file-table th, .file-table td {
+            padding: 1rem;
+            border-bottom: 1px solid #334155;
+        }
+
+        .file-table th {
+            color: var(--text-muted);
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .file-name {
+            font-weight: 600;
+            color: #e2e8f0;
+            word-break: break-all;
+        }
+
+        .btn-download {
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-block;
+            transition: background 0.2s;
+            font-size: 0.85rem;
+        }
+
+        .btn-download:hover {
+            background-color: var(--accent-hover);
+        }
+
+        footer {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Locker de Archivos Público</h1>
+        <p>Solo el administrador puede subir o remover archivos de esta lista</p>
+    </header>
+
+    <div class="container">
+        
+        <div class="files-section">
+            <h2>Archivos Disponibles</h2>
+            
+            <div id="loading-message">Cargando lista de archivos en tiempo real...</div>
+
+            <table class="file-table" id="file-table">
+                <thead>
+                    <tr>
+                        <th>Nombre del Archivo</th>
+                        <th>Tamaño</th>
+                        <th>Acción</th>
+                    </tr>
+                </thead>
+                <tbody id="file-list">
+                    </tbody>
+            </table>
+        </div>
+
+    </div>
+
+    <footer>
+        Servido de forma segura mediante la API de GitHub Pages.
+    </footer>
+
+    <script>
+        // CONFIGURACIÓN CRÍTICA: Cambia estos dos datos por los tuyos de GitHub
+        const CONFIG = {
+            usuario: "TU_USUARIO_DE_GITHUB",      // Escribe aquí tu nombre de usuario de GitHub
+            repositorio: "TU_REPOSITORIO",       // Escribe aquí el nombre exacto de tu repositorio
+            carpeta: "descargas"                 // Nombre de la carpeta donde pondrás tus archivos
+        };
+
+        async function obtenerArchivosDeGitHub() {
+            const urlApi = `https://api.github.com/repos/${CONFIG.usuario}/${CONFIG.repositorio}/contents/${CONFIG.carpeta}`;
+            const loader = document.getElementById('loading-message');
+            const tabla = document.getElementById('file-table');
+            const fileList = document.getElementById('file-list');
+
+            try {
+                const respuesta = await fetch(urlApi);
+                
+                if (!respuesta.ok) {
+                    throw new Error("No se pudo acceder a la carpeta. Asegúrate de haberla creado y que tenga al menos un archivo dentro.");
+                }
+
+                const archivos = await respuesta.json();
+                
+                // Limpiar tabla e instrucciones previas
+                fileList.innerHTML = "";
+                loader.style.display = "none";
+                tabla.style.display = "table";
+
+                // Si la carpeta está vacía
+                if(archivos.length === 0) {
+                    loader.innerText = "La carpeta de descargas está vacía actualmente.";
+                    loader.style.display = "block";
+                    tabla.style.display = "none";
+                    return;
+                }
+
+                // Filtrar para mostrar solo archivos (ignorar subcarpetas si las hay)
+                archivos.forEach(item => {
+                    if (item.type === "file" && item.name !== ".gitkeep") {
+                        const fila = document.createElement('tr');
+                        
+                        // Convertir tamaño a formato legible (KB o MB)
+                        const tamanoKB = item.size / 1024;
+                        const tamanoTexto = tamanoKB > 1024 
+                            ? (tamanoKB / 1024).toFixed(1) + ' MB' 
+                            : tamanoKB.toFixed(1) + ' KB';
+
+                        fila.innerHTML = `
+                            <td class="file-name">${item.name}</td>
+                            <td>${tamanoTexto}</td>
+                            <td>
+                                <a href="${item.download_url}" download class="btn-download">Descargar</a>
+                            </td>
+                        `;
+                        fileList.appendChild(fila);
+                    }
+                });
+
+            } catch (error) {
+                console.error(error);
+                loader.innerHTML = `<span style="color: #ef4444;">⚠️ Error: ${error.message}</span>`;
+            }
+        }
+
+        // Ejecutar la función al cargar la página
+        window.onload = obtenerArchivosDeGitHub;
+    </script>
+</body>
+</html>
